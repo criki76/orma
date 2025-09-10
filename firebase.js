@@ -1,13 +1,20 @@
-// Inizializza Firebase (compat)
-if (!window.__FIREBASE_CONFIG__) {
-  console.warn('⚠️ Config Firebase mancante. Apri firebase-config.js e inserisci le tue chiavi.');
-}
-const app = firebase.initializeApp(window.__FIREBASE_CONFIG__ || {});
-const auth = firebase.auth();
-const db = firebase.firestore();
+// firebase.js (usa i moduli ufficiali Firebase da CDN)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { firebaseConfig } from "./firebase-config.js";
 
-// Abilita timestamp lato server
-db.settings({ ignoreUndefinedProperties: true });
+// Inizializza
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
 
-// Esporta global per debug da console
-window.__orma = { app, auth, db };
+// Se usi Google
+export const googleProvider = new GoogleAuthProvider();
+
+// Riesporto le funzioni di auth così le puoi importare da app.js
+export { signInWithPopup, onAuthStateChanged, signOut };
