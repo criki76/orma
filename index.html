@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orma — lascia un segno</title>
+  <meta name="description" content="Orma: emozioni, pensieri e gesti gentili sulla mappa del mondo." />
+  <meta name="theme-color" content="#b86a2b" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">Orma</span>
+      <span class="tagline">lascia un segno</span>
+    </div>
+    <nav class="actions">
+      <button id="loginBtn" class="btn">Accedi</button>
+      <button id="logoutBtn" class="btn btn-outline" style="display:none">Esci</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="intro card">
+      <h1>Lascia un segno gentile nel mondo</h1>
+      <p>Scrivi un&#39;emozione o un gesto gentile e posizionalo sulla mappa. Con Orma, ogni segno conta.</p>
+      <div class="cta-row">
+        <button id="addSegnoBtn" class="btn btn-primary" disabled>+ Lascia un segno</button>
+        <span id="quotaInfo" class="muted">(accedi per partecipare)</span>
+      </div>
+    </section>
+
+    <section class="map-wrap card">
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <dialog id="segnoDialog" class="dialog">
+    <form method="dialog" class="dialog-body">
+      <h2>Nuovo segno</h2>
+      <p class="muted">Scrivi qualcosa di gentile o un&#39;emozione positiva.</p>
+      <textarea id="segnoText" rows="4" maxlength="240" placeholder="Es: Oggi ho sorriso a uno sconosciuto."></textarea>
+      <div class="hint">Scegli la posizione: usa la tua posizione o clicca sulla mappa.</div>
+      <div class="row">
+        <button id="useMyLocation" class="btn btn-outline" type="button">Usa la mia posizione</button>
+        <span id="pickedLocation" class="muted">Nessuna posizione selezionata</span>
+      </div>
+      <menu class="dialog-actions">
+        <button class="btn btn-outline" value="cancel">Annulla</button>
+        <button id="saveSegnoBtn" class="btn btn-primary" value="default">Salva</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <footer class="footer">
+    <small>© 2025 Orma • Prototipo MVP</small>
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Firebase (compat for simplicity) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- Config + App -->
+  <script>window.__FIREBASE_CONFIG__ = null; // Inserisci la tua config in firebase-config.js</script>
+  <script src="./firebase-config.js"></script>
+  <script src="./firebase.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
