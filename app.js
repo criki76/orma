@@ -1,3 +1,5 @@
+import { auth } from "./firebase.js";
+
 // Leaflet Map
 let map, clickLatLng = null, markersLayer;
 
