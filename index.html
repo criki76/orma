@@ -72,26 +72,28 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- ✅ Firebase Moderno (ES Modules) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<!-- ✅ Firebase Moderno (ES Modules) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY", // 👈 SOSTITUISCI CON LA TUA
-      authDomain: "your-project.firebaseapp.com",
-      projectId: "your-project",
-      storageBucket: "your-project.appspot.com",
-      messagingSenderId: "your-sender-id",
-      appId: "your-app-id"
-    };
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY", // 👈 SOSTITUISCI CON LA TUA
+    authDomain: "your-project.firebaseapp.com",
+    projectId: "your-project",
+    storageBucket: "your-project.appspot.com",
+    messagingSenderId: "your-sender-id",
+    appId: "your-app-id"
+  };
 
-    window.__FIREBASE_CONFIG__ = firebaseConfig;
-    window.__FIREBASE_APP__ = initializeApp(firebaseConfig);
-    window.__FIREBASE_AUTH__ = getAuth();
-    window.__FIREBASE_DB__ = getFirestore();
-  </script>
+  window.__FIREBASE_APP__ = initializeApp(firebaseConfig);
+  window.__FIREBASE_AUTH__ = getAuth();
+  window.__FIREBASE_DB__ = getFirestore();
+
+  // 👇 ESPORTA IL PROVIDER GOOGLE COME VARIABILE GLOBALE!
+  window.__FIREBASE_GOOGLE_PROVIDER__ = new GoogleAuthProvider();
+</script>
 
   <!-- I tuoi script (moduli ES6) -->
   <script type="module" src="./firebase.js"></script>
