@@ -133,17 +133,14 @@ async function salvaSegno({ text, lat, lng }) {
     uid: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'Utente',
     userPhoto: auth.currentUser.photoURL || null,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(), // server-side (può arrivare dopo)
+    createdAtTs: Date.now()       // client-side (subito disponibile)
   };
 
   const ref = await addDoc(collection(db, SEGNI_COLL), docData);
 
-  // Disegna SUBITO il segno (più evidente del marker di selezione)
-  const m = L.circleMarker([lat, lng], {
-    radius: 8,
-    weight: 2,
-    fillOpacity: 0.7
-  });
+  // Disegna SUBITO il segno, così lo vedi anche senza ricaricare
+  const m = L.circleMarker([lat, lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
   m.bindPopup(
     `<strong>${escapeHtml(docData.userName)}</strong><br>${escapeHtml(docData.text)}<br><small>appena adesso</small>`
   );
@@ -158,27 +155,42 @@ async function salvaSegno({ text, lat, lng }) {
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
-  const q = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
-  const snap = await getDocs(q);
-
-  snap.forEach((doc) => {
-    const d = doc.data();
-    if (typeof d.lat === 'number' && typeof d.lng === 'number') {
-      const m = L.circleMarker([d.lat, d.lng], {
-        radius: 8,
-        weight: 2,
-        fillOpacity: 0.7
-      });
-      const when = d.createdAt?.toDate ? d.createdAt.toDate() : null;
-      const timeStr = when ? when.toLocaleString() : 'appena adesso';
-      m.bindPopup(
-        `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(
-          d.text || ''
-        )}<br><small>${escapeHtml(timeStr)}</small>`
-      );
-      markersLayer.addLayer(m);
+  // Prima proviamo con createdAt (serverTimestamp)
+  try {
+    const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
+    const snap1 = await getDocs(q1);
+    if (snap1.size > 0) {
+      snap1.forEach(drawDocAsMarker);
+      return;
     }
-  });
+  } catch (e) {
+    console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
+  }
+
+  // Fallback: createdAtTs (numero, sempre presente)
+  try {
+    const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
+    const snap2 = await getDocs(q2);
+    snap2.forEach(drawDocAsMarker);
+  } catch (e2) {
+    console.error('Errore anche nel fallback createdAtTs:', e2);
+  }
+}
+
+function drawDocAsMarker(doc) {
+  const d = doc.data();
+  if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
+
+  const m = L.circleMarker([d.lat, d.lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
+  const when =
+    d.createdAt?.toDate ? d.createdAt.toDate() :
+    (typeof d.createdAtTs === 'number' ? new Date(d.createdAtTs) : null);
+  const timeStr = when ? when.toLocaleString() : 'appena adesso';
+
+  m.bindPopup(
+    `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(d.text || '')}<br><small>${escapeHtml(timeStr)}</small>`
+  );
+  markersLayer.addLayer(m);
 }
 
 // Utils
