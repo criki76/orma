@@ -155,42 +155,63 @@ async function salvaSegno({ text, lat, lng }) {
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
-  // Prima proviamo con createdAt (serverTimestamp)
-  try {
-    const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
-    const snap1 = await getDocs(q1);
-    if (snap1.size > 0) {
-      snap1.forEach(drawDocAsMarker);
-      return;
-    }
-  } catch (e) {
-    console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
-  }
+  const q = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
+  const snap = await getDocs(q);
 
-  // Fallback: createdAtTs (numero, sempre presente)
-  try {
-    const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
-    const snap2 = await getDocs(q2);
-    snap2.forEach(drawDocAsMarker);
-  } catch (e2) {
-    console.error('Errore anche nel fallback createdAtTs:', e2);
-  }
+  // mappa per contare quanti segni hanno la stessa chiave lat:lng
+  const counts = new Map();
+
+  snap.forEach((doc) => {
+    const d = doc.data();
+    if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
+
+    const key = `${d.lat.toFixed(6)}:${d.lng.toFixed(6)}`;
+    const seen = counts.get(key) || 0;
+    counts.set(key, seen + 1);
+
+    // Se più segni hanno la stessa chiave, aggiungi un piccolo offset (≈ pochi metri)
+    const offsetMeters = seen * 6; // distanza fra i cerchi
+    const bearingDeg = (seen * 45) % 360; // angolo per "sventagliare"
+
+    const { latAdj, lngAdj } = offsetLatLng(d.lat, d.lng, offsetMeters, bearingDeg);
+
+    const m = L.circleMarker([latAdj, lngAdj], {
+      radius: 8,
+      weight: 2,
+      fillOpacity: 0.7
+    });
+
+    const when = d.createdAt?.toDate ? d.createdAt.toDate() : null;
+    const timeStr = when ? when.toLocaleString() : 'appena adesso';
+    m.bindPopup(
+      `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(
+        d.text || ''
+      )}<br><small>${escapeHtml(timeStr)}</small>`
+    );
+    markersLayer.addLayer(m);
+  });
 }
 
-function drawDocAsMarker(doc) {
-  const d = doc.data();
-  if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
+// offset geodesico molto semplice (circa) in metri e bearing
+function offsetLatLng(lat, lng, meters, bearingDeg) {
+  const R = 6378137; // raggio Terra (m)
+  const dByR = meters / R;
+  const bearing = (bearingDeg * Math.PI) / 180;
 
-  const m = L.circleMarker([d.lat, d.lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
-  const when =
-    d.createdAt?.toDate ? d.createdAt.toDate() :
-    (typeof d.createdAtTs === 'number' ? new Date(d.createdAtTs) : null);
-  const timeStr = when ? when.toLocaleString() : 'appena adesso';
+  const lat1 = (lat * Math.PI) / 180;
+  const lng1 = (lng * Math.PI) / 180;
 
-  m.bindPopup(
-    `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(d.text || '')}<br><small>${escapeHtml(timeStr)}</small>`
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(dByR) + Math.cos(lat1) * Math.sin(dByR) * Math.cos(bearing)
   );
-  markersLayer.addLayer(m);
+  const lng2 =
+    lng1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(dByR) * Math.cos(lat1),
+      Math.cos(dByR) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+  return { latAdj: (lat2 * 180) / Math.PI, lngAdj: (lng2 * 180) / Math.PI };
 }
 
 // Utils
