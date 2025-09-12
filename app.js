@@ -151,28 +151,28 @@ async function salvaSegno({ text, lat, lng }) {
   return ref;
 }
 
-// Carica segni recenti dalla collezione
+// Carica segni recenti dalla collezione (unisce createdAt e createdAtTs)
 async function caricaSegniRecenti() {
-  markersLayer.clearLayers();
+  const byId = new Map();
 
   try {
     const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
-    const snap1 = await getDocs(q1);
-    if (snap1.size > 0) {
-      snap1.forEach(drawDocAsMarker);
-      return;
-    }
+    const s1 = await getDocs(q1);
+    s1.forEach(doc => byId.set(doc.id, doc));
   } catch (e) {
-    console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
+    console.warn('createdAt query error:', e?.code || e?.message);
   }
 
   try {
     const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
-    const snap2 = await getDocs(q2);
-    snap2.forEach(drawDocAsMarker);
+    const s2 = await getDocs(q2);
+    s2.forEach(doc => byId.set(doc.id, doc));
   } catch (e2) {
-    console.error('Errore anche nel fallback createdAtTs:', e2);
+    console.error('createdAtTs query error:', e2);
   }
+
+  markersLayer.clearLayers();
+  byId.forEach(doc => drawDocAsMarker(doc));
 }
 
 function drawDocAsMarker(doc) {
@@ -201,7 +201,7 @@ function escapeHtml(s) {
     .replaceAll("'", '&#039;');
 }
 
-// 👉 nuova utilità per spostare di pochi metri
+// Jitter per non sovrapporre
 function tinyJitter(lat, lng) {
   const dLat = (Math.random() - 0.5) * 0.00005; // ±5 metri circa
   const dLng = (Math.random() - 0.5) * 0.00005;
@@ -252,7 +252,7 @@ function wireEvents() {
         return alert('Scegli una posizione cliccando sulla mappa o usando la tua posizione.');
       }
 
-      // ➜ qui applichiamo il jitter per non sovrapporre
+      // Applica jitter
       const j = tinyJitter(lat, lng);
       lat = j.lat;
       lng = j.lng;
@@ -264,8 +264,11 @@ function wireEvents() {
       segnoText.value = '';
       closeSegnoDialog();
 
-      await caricaSegniRecenti();
-      await checkQuotaAndUpdate();
+      // aspetta un attimo che Firestore scriva il serverTimestamp
+      setTimeout(() => {
+        caricaSegniRecenti().catch(console.error);
+        checkQuotaAndUpdate().catch(console.error);
+      }, 1200);
     } catch (e) {
       console.error(e);
       alert('Errore nel salvataggio del segno.');
@@ -288,3 +291,4 @@ function wireEvents() {
 
   await caricaSegniRecenti();
 })();
+
