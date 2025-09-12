@@ -133,13 +133,13 @@ async function salvaSegno({ text, lat, lng }) {
     uid: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'Utente',
     userPhoto: auth.currentUser.photoURL || null,
-    createdAt: serverTimestamp(), // server-side (può arrivare dopo)
-    createdAtTs: Date.now()       // client-side (subito disponibile)
+    createdAt: serverTimestamp(),
+    createdAtTs: Date.now()
   };
 
   const ref = await addDoc(collection(db, SEGNI_COLL), docData);
 
-  // Disegna SUBITO il segno, così lo vedi anche senza ricaricare
+  // Disegna SUBITO il segno
   const m = L.circleMarker([lat, lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
   m.bindPopup(
     `<strong>${escapeHtml(docData.userName)}</strong><br>${escapeHtml(docData.text)}<br><small>appena adesso</small>`
@@ -155,7 +155,6 @@ async function salvaSegno({ text, lat, lng }) {
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
-  // Prima proviamo con createdAt (serverTimestamp)
   try {
     const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
     const snap1 = await getDocs(q1);
@@ -167,7 +166,6 @@ async function caricaSegniRecenti() {
     console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
   }
 
-  // Fallback: createdAtTs (numero, sempre presente)
   try {
     const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
     const snap2 = await getDocs(q2);
@@ -203,6 +201,13 @@ function escapeHtml(s) {
     .replaceAll("'", '&#039;');
 }
 
+// 👉 nuova utilità per spostare di pochi metri
+function tinyJitter(lat, lng) {
+  const dLat = (Math.random() - 0.5) * 0.00005; // ±5 metri circa
+  const dLng = (Math.random() - 0.5) * 0.00005;
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+
 function prendiMiaPosizione() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Geolocalizzazione non supportata'));
@@ -223,7 +228,7 @@ function wireEvents() {
     try {
       const q = await checkQuotaAndUpdate();
       if (!q.allowed) return;
-    } catch { /* se quota non verificabile, apri comunque */ }
+    } catch {}
     openSegnoDialog();
   });
 
@@ -241,20 +246,25 @@ function wireEvents() {
       const text = segnoText.value.trim();
       if (!text) return alert('Scrivi qualcosa prima di salvare.');
 
-      const lat = parseFloat(pickedLocation.dataset.lat || '');
-      const lng = parseFloat(pickedLocation.dataset.lng || '');
+      let lat = parseFloat(pickedLocation.dataset.lat || '');
+      let lng = parseFloat(pickedLocation.dataset.lng || '');
       if (!isFinite(lat) || !isFinite(lng)) {
         return alert('Scegli una posizione cliccando sulla mappa o usando la tua posizione.');
       }
 
+      // ➜ qui applichiamo il jitter per non sovrapporre
+      const j = tinyJitter(lat, lng);
+      lat = j.lat;
+      lng = j.lng;
+
       const { allowed } = await checkQuotaAndUpdate();
       if (!allowed) return;
 
-      await salvaSegno({ text, lat, lng });   // ➜ disegna subito
+      await salvaSegno({ text, lat, lng });
       segnoText.value = '';
       closeSegnoDialog();
 
-      await caricaSegniRecenti();             // ➜ ricarica anche quelli degli altri
+      await caricaSegniRecenti();
       await checkQuotaAndUpdate();
     } catch (e) {
       console.error(e);
