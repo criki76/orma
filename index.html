@@ -34,7 +34,7 @@
   <main class="layout">
     <section class="intro card">
       <h1>Lascia un segno gentile nel mondo</h1>
-      <p>Scrivi un&#39;emozione o un gesto gentile e posizionalo sulla mappa. Con Orma, ogni segno conta.</p>
+      <p>Scrivi un'emozione o un gesto gentile e posizionalo sulla mappa. Con Orma, ogni segno conta.</p>
       <div class="cta-row">
         <button id="addSegnoBtn" class="btn btn-primary" disabled>+ Lascia un segno</button>
         <span id="quotaInfo" class="muted">(accedi per partecipare)</span>
@@ -50,7 +50,7 @@
   <dialog id="segnoDialog" class="dialog">
     <form method="dialog" class="dialog-body">
       <h2>Nuovo segno</h2>
-      <p class="muted">Scrivi qualcosa di gentile o un&#39;emozione positiva.</p>
+      <p class="muted">Scrivi qualcosa di gentile o un'emozione positiva.</p>
       <textarea id="segnoText" rows="4" maxlength="240" placeholder="Es: Oggi ho sorriso a uno sconosciuto."></textarea>
       <div class="hint">Scegli la posizione: usa la tua posizione o clicca sulla mappa.</div>
       <div class="row">
@@ -72,17 +72,30 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- Firebase (compat for simplicity) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <!-- ✅ Firebase Moderno (ES Modules) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  <!-- Config + App -->
-  <script>window.__FIREBASE_CONFIG__ = null; // Inserisci la tua config in firebase-config.js</script>
-  <script src="./firebase-config.js"></script>
- <!-- mai senza type="module" -->
-<script type="module" src="./firebase.js"></script>
-<script type="module" src="./app.js"></script>
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY", // 👈 SOSTITUISCI CON LA TUA
+      authDomain: "your-project.firebaseapp.com",
+      projectId: "your-project",
+      storageBucket: "your-project.appspot.com",
+      messagingSenderId: "your-sender-id",
+      appId: "your-app-id"
+    };
+
+    window.__FIREBASE_CONFIG__ = firebaseConfig;
+    window.__FIREBASE_APP__ = initializeApp(firebaseConfig);
+    window.__FIREBASE_AUTH__ = getAuth();
+    window.__FIREBASE_DB__ = getFirestore();
+  </script>
+
+  <!-- I tuoi script (moduli ES6) -->
+  <script type="module" src="./firebase.js"></script>
+  <script type="module" src="./app.js"></script>
 
 </body>
 </html>
