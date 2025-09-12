@@ -1,18 +1,12 @@
 // firebase.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
+// Solo un'interfaccia per accedere alle istanze Firebase già caricate
 
-// Inizializza Firebase
-const app = initializeApp(firebaseConfig);
+export const app = window.__FIREBASE_APP__;
+export const auth = window.__FIREBASE_AUTH__;
+export const db = window.__FIREBASE_DB__;
 
-// Auth
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+// Timestamp server (alternativa per il prototipo)
+export const serverTimestamp = () => new Date().toISOString();
 
-// Firestore
-export const db = getFirestore(app);
-// Utility comoda per i timestamp server
-export { serverTimestamp };
-
+// Google Provider: lo creiamo qui senza dipendere da firebase-auth.js
+export const googleProvider = new firebase.auth.GoogleAuthProvider();
