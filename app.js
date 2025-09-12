@@ -48,11 +48,33 @@ function updateUI() {
   }
 }
 
-// Login con Google
 async function loginWithGoogle() {
   try {
-    await auth.signInWithPopup(googleProvider);
-    console.log('Login riuscito!');
+    console.log('Tipo di auth:', typeof auth);
+    console.log('auth object:', auth);
+
+    // --- Caso 1: Firebase v9 (modulare) ---
+    if (typeof signInWithPopup !== 'undefined') {
+      // Hai importato signInWithPopup da 'firebase/auth' altrove? No? Allora non esiste.
+      // Ma se è definita, usala.
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log('Login v9 riuscito!', result.user);
+      return result;
+    }
+
+    // --- Caso 2: Firebase v8 (namespaced) ---
+    if (auth && typeof auth.signInWithPopup === 'function') {
+      const result = await auth.signInWithPopup(googleProvider);
+      console.log('Login v8 riuscito!', result.user);
+      return result;
+    }
+
+    // --- Caso 3: Nessuno dei due → errore chiaro ---
+    throw new Error(
+      'Firebase non correttamente inizializzato. ' +
+      'Assicurati che window.__FIREBASE_AUTH__ e window.__FIREBASE_GOOGLE_PROVIDER__ siano definiti.'
+    );
+
   } catch (error) {
     console.error('Errore login:', error.message);
     alert('Errore durante il login: ' + error.message);
