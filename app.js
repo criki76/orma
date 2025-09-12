@@ -1,3 +1,4 @@
+
 // usa Firebase istanziato in index.html
 import { signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
@@ -27,10 +28,8 @@ const cancelAddSegno = document.getElementById('cancelAddSegno');
 // Mappa
 let map;
 let pickMarker = null;
-// cluster layer (invece di un semplice layerGroup)
 let markersLayer = null;
 
-// ------------ MAPPA ------------
 function initMap() {
   map = L.map('map').setView([41.9028, 12.4964], 6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -38,12 +37,7 @@ function initMap() {
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
-  // Cluster con spiderfy per punti sovrapposti
-  markersLayer = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    spiderfyOnEveryZoom: true,
-    maxClusterRadius: 40
-  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
 
   // click per scegliere la posizione
   map.on('click', (e) => setPickedLocation(e.latlng.lat, e.latlng.lng, true));
@@ -51,11 +45,16 @@ function initMap() {
 
 function setPickedLocation(lat, lng, move = false) {
   if (pickMarker) map.removeLayer(pickMarker);
-  pickMarker = L.marker([lat, lng]).addTo(map); // marker grande di selezione
+  pickMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
   if (move) map.setView([lat, lng], Math.max(map.getZoom(), 13));
   pickedLocation.textContent = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
   pickedLocation.dataset.lat = String(lat);
   pickedLocation.dataset.lng = String(lng);
+
+  pickMarker.on('dragend', () => {
+    const p = pickMarker.getLatLng();
+    setPickedLocation(p.lat, p.lng, false);
+  });
 }
 
 function openSegnoDialog() {
@@ -73,7 +72,6 @@ function closeSegnoDialog() {
   else segnoDialog.style.display = 'none';
 }
 
-// ------------ UI/AUTH ------------
 function updateUI() {
   const logged = !!auth.currentUser;
   loginBtn.style.display = logged ? 'none' : 'inline-block';
@@ -99,7 +97,7 @@ async function handleLogout() {
   }
 }
 
-// ------------ QUOTA ------------
+// Quota: max QUOTA_MAX segni nelle ultime 24h
 async function checkQuotaAndUpdate() {
   if (!auth.currentUser) {
     addSegnoBtn.disabled = true;
@@ -126,7 +124,7 @@ async function checkQuotaAndUpdate() {
   return { allowed: true, left };
 }
 
-// ------------ SALVATAGGIO ------------
+// Salva su Firestore e DISEGNA SUBITO il segno sulla mappa
 async function salvaSegno({ text, lat, lng }) {
   if (!auth.currentUser) throw new Error('Non autenticato');
 
@@ -136,47 +134,45 @@ async function salvaSegno({ text, lat, lng }) {
     uid: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'Utente',
     userPhoto: auth.currentUser.photoURL || null,
-    createdAt: serverTimestamp(), // server-side (potrebbe arrivare leggermente dopo)
-    createdAtTs: Date.now()       // client-side (subito)
+    createdAt: serverTimestamp(), // server-side (può arrivare dopo)
+    createdAtTs: Date.now()       // client-side (subito disponibile)
   };
 
   const ref = await addDoc(collection(db, SEGNI_COLL), docData);
 
-  // Disegna SUBITO il segno nel cluster (senza aspettare reload)
-  const marker = L.marker([lat, lng], { icon: createDotIcon() });
-  marker.bindPopup(
+  // Disegna SUBITO il segno, così lo vedi anche senza ricaricare
+  const m = L.circleMarker([lat, lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
+  m.bindPopup(
     `<strong>${escapeHtml(docData.userName)}</strong><br>${escapeHtml(docData.text)}<br><small>appena adesso</small>`
   );
-  markersLayer.addLayer(marker);
+  markersLayer.addLayer(m);
   map.setView([lat, lng], Math.max(map.getZoom(), 13));
-  marker.openPopup();
+  m.openPopup();
 
   return ref;
 }
 
-// ------------ LETTURA & DISEGNO ------------
+// Carica segni recenti dalla collezione
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
+  // Prima proviamo con createdAt (serverTimestamp)
   try {
     const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
     const snap1 = await getDocs(q1);
-    console.log('[Orma] segni (createdAt):', snap1.size);
     if (snap1.size > 0) {
       snap1.forEach(drawDocAsMarker);
-      console.log('[Orma] layers disegnati:', markersLayer.getLayers().length);
       return;
     }
   } catch (e) {
     console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
   }
 
+  // Fallback: createdAtTs (numero, sempre presente)
   try {
     const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
     const snap2 = await getDocs(q2);
-    console.log('[Orma] segni (createdAtTs):', snap2.size);
     snap2.forEach(drawDocAsMarker);
-    console.log('[Orma] layers disegnati:', markersLayer.getLayers().length);
   } catch (e2) {
     console.error('Errore anche nel fallback createdAtTs:', e2);
   }
@@ -186,31 +182,19 @@ function drawDocAsMarker(doc) {
   const d = doc.data();
   if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
 
-  const marker = L.marker([d.lat, d.lng], { icon: createDotIcon() });
+  const m = L.circleMarker([d.lat, d.lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
   const when =
     d.createdAt?.toDate ? d.createdAt.toDate() :
     (typeof d.createdAtTs === 'number' ? new Date(d.createdAtTs) : null);
   const timeStr = when ? when.toLocaleString() : 'appena adesso';
 
-  marker.bindPopup(
-    `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(
-      d.text || ''
-    )}<br><small>${escapeHtml(timeStr)}</small>`
+  m.bindPopup(
+    `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(d.text || '')}<br><small>${escapeHtml(timeStr)}</small>`
   );
-  markersLayer.addLayer(marker);
+  markersLayer.addLayer(m);
 }
 
-// Piccola icona “dot” per i marker nei cluster (più elegante dei pin standard)
-function createDotIcon() {
-  const html = `<div style="
-    width:14px;height:14px;border-radius:50%;
-    background:#2e6df6;opacity:.9;border:2px solid #fff;
-    box-shadow:0 0 6px rgba(0,0,0,.25);
-  "></div>`;
-  return L.divIcon({ html, className: 'dot-icon', iconSize: [14, 14], iconAnchor: [7, 7] });
-}
-
-// ------------ UTILS ------------
+// Utils
 function escapeHtml(s) {
   return String(s)
     .replaceAll('&', '&amp;')
@@ -231,7 +215,7 @@ function prendiMiaPosizione() {
   });
 }
 
-// ------------ EVENTI UI ------------
+// Eventi UI
 function wireEvents() {
   loginBtn.addEventListener('click', handleLogin);
   logoutBtn.addEventListener('click', handleLogout);
@@ -240,7 +224,7 @@ function wireEvents() {
     try {
       const q = await checkQuotaAndUpdate();
       if (!q.allowed) return;
-    } catch {}
+    } catch { /* se quota non verificabile, apri comunque */ }
     openSegnoDialog();
   });
 
@@ -267,11 +251,11 @@ function wireEvents() {
       const { allowed } = await checkQuotaAndUpdate();
       if (!allowed) return;
 
-      await salvaSegno({ text, lat, lng });   // disegna subito e salva
+      await salvaSegno({ text, lat, lng });   // ➜ disegna subito
       segnoText.value = '';
       closeSegnoDialog();
 
-      await caricaSegniRecenti();             // carica anche quelli degli altri
+      await caricaSegniRecenti();             // ➜ ricarica anche quelli degli altri
       await checkQuotaAndUpdate();
     } catch (e) {
       console.error(e);
@@ -282,7 +266,7 @@ function wireEvents() {
   cancelAddSegno.addEventListener('click', () => closeSegnoDialog());
 }
 
-// ------------ BOOTSTRAP ------------
+// Bootstrap
 (async function main() {
   initMap();
   wireEvents();
