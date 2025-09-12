@@ -8,12 +8,12 @@
   <meta name="theme-color" content="#b86a2b" />
 
   <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com  ">
+  <link rel="preconnect" href="https://fonts.gstatic.com  " crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css  "
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 
   <!-- Styles -->
@@ -69,14 +69,14 @@
   </footer>
 
   <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js  "
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- ✅ Firebase v9 MODULARE — CORRETTO E COMPLETO -->
+  <!-- ✅ Firebase Moderno (ES Modules) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js  ";
+    import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js  ";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js  ";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDEYxuxC_snlko4T3E-WQlD7VkYoLlOIOw",
@@ -88,22 +88,10 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const googleProvider = new GoogleAuthProvider();
-
-    // ✅ ESPORTA TUTTO GLOBALMENTE PER IL TUO app.js
     window.__FIREBASE_APP__ = app;
-    window.__FIREBASE_AUTH__ = auth;
-    window.__FIREBASE_DB__ = db;
-    window.__FIREBASE_GOOGLE_PROVIDER__ = googleProvider;
-
-    // ✅ ✅ ✅ FONDAMENTALE: ESPORTA signInWithPopup COME FUNZIONE GLOBALE
-    // Così il tuo app.js può usare: auth.signInWithPopup(googleProvider)
-    window.signInWithPopup = signInWithPopup;
-
-    // ✅ Esporta anche firebase per GeoPoint
-    window.firebase = { auth: auth, firestore: db };
+    window.__FIREBASE_AUTH__ = getAuth(app); // ✅ FONDAMENTALE: passa 'app'
+    window.__FIREBASE_DB__ = getFirestore(app);
+    window.__FIREBASE_GOOGLE_PROVIDER__ = new GoogleAuthProvider();
   </script>
 
   <!-- I tuoi script (moduli ES6) -->
