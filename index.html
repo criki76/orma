@@ -8,16 +8,43 @@
   <meta name="theme-color" content="#b86a2b" />
 
   <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com  ">
-  <link rel="preconnect" href="https://fonts.gstatic.com  " crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css  "
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="./style.css" />
+  <!-- Style minimal -->
+  <style>
+    :root{
+      --bg:#faf9f6; --ink:#1e1e1c; --muted:#6f6f69; --card:#fff; --accent:#b86a2b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid #eee}
+    .brand .logo{font-family:"Playfair Display",serif;font-weight:700;font-size:20px;margin-right:8px}
+    .brand .tagline{color:var(--muted);font-size:12px}
+    .actions .btn{margin-left:8px}
+    .layout{max-width:1100px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:1fr;gap:16px}
+    .card{background:var(--card);border:1px solid #eee;border-radius:14px;padding:16px}
+    h1{font-family:"Playfair Display",serif;margin:0 0 8px}
+    .muted{color:var(--muted)}
+    .cta-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    #map{width:100%;height:60vh;border-radius:12px}
+    .btn{border:1px solid #ddd;background:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+    .btn:hover{border-color:#ccc}
+    .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .btn-outline{background:#fff;color:var(--accent);border-color:var(--accent)}
+    .footer{padding:24px;text-align:center;color:var(--muted)}
+    /* dialog */
+    dialog.dialog{border:none;border-radius:16px;max-width:560px;width:92%}
+    .dialog-body{display:flex;flex-direction:column;gap:10px;margin:0}
+    textarea{resize:vertical;width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -52,14 +79,14 @@
       <h2>Nuovo segno</h2>
       <p class="muted">Scrivi qualcosa di gentile o un'emozione positiva.</p>
       <textarea id="segnoText" rows="4" maxlength="240" placeholder="Es: Oggi ho sorriso a uno sconosciuto."></textarea>
-      <div class="hint">Scegli la posizione: usa la tua posizione o clicca sulla mappa.</div>
+      <div class="hint muted">Scegli la posizione: usa la tua posizione o clicca sulla mappa.</div>
       <div class="row">
         <button id="useMyLocation" class="btn btn-outline" type="button">Usa la mia posizione</button>
         <span id="pickedLocation" class="muted">Nessuna posizione selezionata</span>
       </div>
       <menu class="dialog-actions">
-        <button class="btn btn-outline" value="cancel">Annulla</button>
-        <button id="saveSegnoBtn" class="btn btn-primary" value="default">Salva</button>
+        <button class="btn btn-outline" value="cancel" type="button" id="cancelAddSegno">Annulla</button>
+        <button id="saveSegnoBtn" class="btn btn-primary" type="button">Salva</button>
       </menu>
     </form>
   </dialog>
@@ -69,14 +96,14 @@
   </footer>
 
   <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js  "
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 
-  <!-- ✅ Firebase Moderno (ES Modules) -->
+  <!-- Firebase init (ESM) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js  ";
-    import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js  ";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js  ";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDEYxuxC_snlko4T3E-WQlD7VkYoLlOIOw",
@@ -88,14 +115,18 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const googleProvider = new GoogleAuthProvider();
+
+    // Esponi ai moduli esterni
     window.__FIREBASE_APP__ = app;
-    window.__FIREBASE_AUTH__ = getAuth(app); // ✅ FONDAMENTALE: passa 'app'
-    window.__FIREBASE_DB__ = getFirestore(app);
-    window.__FIREBASE_GOOGLE_PROVIDER__ = new GoogleAuthProvider();
+    window.__FIREBASE_AUTH__ = auth;
+    window.__FIREBASE_DB__ = db;
+    window.__FIREBASE_GOOGLE_PROVIDER__ = googleProvider;
   </script>
 
-  <!-- I tuoi script (moduli ES6) -->
-  <script type="module" src="./firebase.js"></script>
+  <!-- App -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
