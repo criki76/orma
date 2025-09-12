@@ -62,21 +62,42 @@ async function loginWithGoogle() {
       return result;
     }
 
-    // --- Caso 2: Firebase v8 (namespaced) ---
-    if (auth && typeof auth.signInWithPopup === 'function') {
+  // Login con Google — VERSIONE UNIVERSALE (funziona su v8 e v9)
+async function loginWithGoogle() {
+  try {
+    console.log('🔍 Controllando auth e provider...');
+    console.log('auth:', auth);
+    console.log('googleProvider:', googleProvider);
+
+    // Verifica che siano definiti
+    if (!auth || !googleProvider) {
+      throw new Error('Firebase non inizializzato correttamente.');
+    }
+
+    // --- Caso 1: Firebase v9 → usa la funzione top-level ---
+    if (typeof window.signInWithPopup === 'function') {
+      console.log('🚀 Usando Firebase v9 (signInWithPopup globale)');
+      const result = await window.signInWithPopup(auth, googleProvider);
+      console.log('Login v9 riuscito!', result.user);
+      return result;
+    }
+
+    // --- Caso 2: Firebase v8 → usa il metodo dell'oggetto auth ---
+    if (typeof auth.signInWithPopup === 'function') {
+      console.log('🚀 Usando Firebase v8 (auth.signInWithPopup)');
       const result = await auth.signInWithPopup(googleProvider);
       console.log('Login v8 riuscito!', result.user);
       return result;
     }
 
-    // --- Caso 3: Nessuno dei due → errore chiaro ---
+    // --- Caso 3: Nessun metodo disponibile ---
     throw new Error(
-      'Firebase non correttamente inizializzato. ' +
-      'Assicurati che window.__FIREBASE_AUTH__ e window.__FIREBASE_GOOGLE_PROVIDER__ siano definiti.'
+      'Nessuna funzione signInWithPopup disponibile. ' +
+      'Assicurati che Firebase sia stato caricato correttamente e che il provider sia valido.'
     );
 
   } catch (error) {
-    console.error('Errore login:', error.message);
+    console.error('❌ Errore login:', error.message);
     alert('Errore durante il login: ' + error.message);
   }
 }
