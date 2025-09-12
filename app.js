@@ -1,184 +1,157 @@
-// app.js (v9 modulare)
-import { auth, googleProvider, db, serverTimestamp } from "./firebase.js";
-import {
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
-  collection, addDoc, getDocs, onSnapshot,
-  query, where, orderBy, limit
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// app.js
+import { app, auth, db, googleProvider, serverTimestamp } from './firebase.js';
 
-// Leaflet Map
-let map, clickLatLng = null, markersLayer;
-
-function initMap() {
-  map = L.map('map', { zoomControl: true }).setView([41.9, 12.5], 5); // Italia by default
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-
-  markersLayer = L.layerGroup().addTo(map);
-
-  // Pick position by clicking
-  map.on('click', (e) => {
-    clickLatLng = e.latlng;
-    updatePickedLocation();
-  });
-}
-
-function markerFor(docSnap) {
-  const d = docSnap.data();
-  const created = d.createdAt?.toDate ? d.createdAt.toDate() : (d.createdAt || new Date());
-  const marker = L.circleMarker([d.lat, d.lng], {
-    radius: 7,
-    color: '#b86a2b',
-    weight: 2,
-    fillColor: '#b86a2b',
-    fillOpacity: 0.9
-  });
-  const content = `<b>${escapeHtml(d.authorName || 'Utente')}</b><br/>
-    <small>${new Date(created).toLocaleString()}</small>
-    <p style="margin-top:6px">${escapeHtml(d.text)}</p>`;
-  marker.bindPopup(content);
-  return marker;
-}
-
-function escapeHtml(s=''){
-  return s.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-
-// Firestore live fetch
-let unsub = null;
-async function startLiveQuery(){
-  if (unsub) { unsub(); unsub = null; }
-  const q = query(
-    collection(db, 'segni'),
-    orderBy('createdAt', 'desc'),
-    limit(500)
-  );
-  unsub = onSnapshot(q, (snap) => {
-    markersLayer.clearLayers();
-    snap.forEach(doc => {
-      const m = markerFor(doc);
-      m.addTo(markersLayer);
-    });
-  }, (err) => console.error(err));
-}
-
-// Auth UI refs
+// Elementi DOM
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const addSegnoBtn = document.getElementById('addSegnoBtn');
 const segnoDialog = document.getElementById('segnoDialog');
 const segnoText = document.getElementById('segnoText');
-const useMyLocationBtn = document.getElementById('useMyLocation');
-const pickedLocationEl = document.getElementById('pickedLocation');
+const useMyLocation = document.getElementById('useMyLocation');
+const pickedLocation = document.getElementById('pickedLocation');
 const quotaInfo = document.getElementById('quotaInfo');
-const saveSegnoBtn = document.getElementById('saveSegnoBtn');
 
-// Login / Logout (v9)
-loginBtn?.addEventListener('click', async () => {
-  try {
-    await signInWithPopup(auth, googleProvider);
-  } catch (e) {
-    console.error(e);
-    alert('Accesso non riuscito.');
+// Inizializza mappa Leaflet
+let map;
+let marker = null;
+
+function initMap() {
+  map = L.map('map').setView([41.9028, 12.4964], 13); // Roma, come default
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  // Ascolta clic sulla mappa per aggiungere marker
+  map.on('click', (e) => {
+    if (marker) map.removeLayer(marker);
+    marker = L.marker(e.latlng).addTo(map);
+    pickedLocation.textContent = `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+    pickedLocation.dataset.lat = e.latlng.lat;
+    pickedLocation.dataset.lng = e.latlng.lng;
+    addSegnoBtn.disabled = false;
+  });
+}
+
+// Aggiorna UI in base allo stato dell'utente
+function updateUI() {
+  if (auth.currentUser) {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    addSegnoBtn.disabled = false;
+    quotaInfo.textContent = '';
+  } else {
+    loginBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    addSegnoBtn.disabled = true;
+    quotaInfo.textContent = '(accedi per partecipare)';
   }
-});
+}
 
-logoutBtn?.addEventListener('click', async () => {
+// Login con Google
+async function loginWithGoogle() {
   try {
-    await signOut(auth);
-  } catch (e) {
-    console.error(e);
+    await auth.signInWithPopup(googleProvider);
+    console.log('Login riuscito!');
+  } catch (error) {
+    console.error('Errore login:', error.message);
+    alert('Errore durante il login: ' + error.message);
   }
-});
+}
 
-// Apertura dialog per nuovo segno
-addSegnoBtn?.addEventListener('click', () => {
-  segnoText.value = '';
-  clickLatLng = null;
-  updatePickedLocation();
-  segnoDialog?.showModal?.();
-});
+// Logout
+async function logout() {
+  try {
+    await auth.signOut();
+    console.log('Logout effettuato');
+  } catch (error) {
+    console.error('Errore logout:', error.message);
+  }
+}
 
-// Geolocalizzazione
-useMyLocationBtn?.addEventListener('click', () => {
-  if (!navigator.geolocation) return alert('Geolocalizzazione non supportata.');
-  navigator.geolocation.getCurrentPosition((pos) => {
-    clickLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    updatePickedLocation();
-  }, (err) => {
-    console.warn(err);
-    alert('Non è stato possibile ottenere la posizione.');
-  }, { enableHighAccuracy: true, timeout: 8000 });
-});
+// Salva un "segno" su Firestore
+async function saveSegno() {
+  if (!auth.currentUser || !segnoText.value.trim()) return;
 
-// Salvataggio segno (v9)
-saveSegnoBtn?.addEventListener('click', async (e) => {
-  e.preventDefault();
-  const user = auth.currentUser;
-  if (!user) return alert('Accedi per lasciare un segno.');
-  const text = (segnoText.value || '').trim();
-  if (!text) return alert('Scrivi qualcosa!');
-  if (!clickLatLng) return alert('Scegli una posizione (clicca sulla mappa o usa la tua posizione).');
+  const lat = parseFloat(pickedLocation.dataset.lat);
+  const lng = parseFloat(pickedLocation.dataset.lng);
 
-  // soft quota: max 2 segni / giorno / utente (client-side)
-  const today = new Date(); today.setHours(0,0,0,0);
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-
-  const qToday = query(
-    collection(db, 'segni'),
-    where('uid','==', user.uid),
-    where('createdAt','>=', today),
-    where('createdAt','<', tomorrow)
-  );
-  const s = await getDocs(qToday);
-  const nToday = s.size;
-
-  if (nToday >= 2) {
-    alert('Hai raggiunto il limite di 2 segni per oggi. Riprova domani!');
+  if (isNaN(lat) || isNaN(lng)) {
+    alert('Seleziona una posizione sulla mappa!');
     return;
   }
 
-  const payload = {
-    uid: user.uid,
-    authorName: user.displayName || 'Utente',
-    text,
-    lat: clickLatLng.lat,
-    lng: clickLatLng.lng,
-    createdAt: serverTimestamp()
-  };
+  try {
+    await db.collection('segni').add({
+      text: segnoText.value.trim(),
+      userId: auth.currentUser.uid,
+      username: auth.currentUser.displayName || 'Anonimo',
+      photoURL: auth.currentUser.photoURL || '',
+      location: new firebase.firestore.GeoPoint(lat, lng),
+      timestamp: serverTimestamp(), // 👈 Usa la nostra funzione
+      createdAt: new Date().toISOString()
+    });
+
+    segnoText.value = '';
+    pickedLocation.textContent = 'Nessuna posizione selezionata';
+    pickedLocation.dataset.lat = '';
+    pickedLocation.dataset.lng = '';
+    marker && map.removeLayer(marker);
+    marker = null;
+    addSegnoBtn.disabled = true;
+
+    segnoDialog.close();
+    console.log('Segno salvato!');
+  } catch (error) {
+    console.error('Errore salvataggio:', error.message);
+    alert('Impossibile salvare il segno: ' + error.message);
+  }
+}
+
+// Event Listeners
+loginBtn.addEventListener('click', loginWithGoogle);
+logoutBtn.addEventListener('click', logout);
+addSegnoBtn.addEventListener('click', () => segnoDialog.showModal());
+segnoDialog.addEventListener('close', () => {
+  if (segnoDialog.returnValue === 'default') {
+    saveSegno();
+  }
+});
+useMyLocation.addEventListener('click', async () => {
+  if (!navigator.geolocation) {
+    alert('La geolocalizzazione non è supportata dal tuo browser.');
+    return;
+  }
 
   try {
-    await addDoc(collection(db, 'segni'), payload);
-    segnoDialog?.close?.();
-  } catch (e) {
-    console.error(e);
-    alert('Errore durante il salvataggio.');
+    const position = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject)
+    );
+
+    const { latitude, longitude } = position.coords;
+    const latLng = L.latLng(latitude, longitude);
+
+    if (marker) map.removeLayer(marker);
+    marker = L.marker(latLng).addTo(map);
+    map.setView(latLng, 15);
+
+    pickedLocation.textContent = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+    pickedLocation.dataset.lat = latitude;
+    pickedLocation.dataset.lng = longitude;
+    addSegnoBtn.disabled = false;
+  } catch (error) {
+    console.error('Errore geolocalizzazione:', error.message);
+    alert('Impossibile ottenere la tua posizione: ' + error.message);
   }
 });
 
-function updatePickedLocation(){
-  if (!pickedLocationEl) return;
-  if (!clickLatLng) pickedLocationEl.textContent = 'Nessuna posizione selezionata';
-  else pickedLocationEl.textContent = `Lat ${clickLatLng.lat.toFixed(4)}, Lng ${clickLatLng.lng.toFixed(4)}`;
-}
-
-// Stato auth (v9)
-onAuthStateChanged(auth, (user) => {
-  const isIn = !!user;
-  if (loginBtn)  loginBtn.style.display  = isIn ? 'none' : 'inline-flex';
-  if (logoutBtn) logoutBtn.style.display = isIn ? 'inline-flex' : 'none';
-  if (addSegnoBtn) addSegnoBtn.disabled = !isIn;
-  if (quotaInfo) quotaInfo.textContent = isIn ? 'Massimo 2 segni al giorno' : '(accedi per partecipare)';
+// Ascolta cambiamenti di autenticazione
+auth.onAuthStateChanged((user) => {
+  updateUI();
 });
 
-// Boot
-window.addEventListener('DOMContentLoaded', () => {
+// Avvia la mappa quando il DOM è pronto
+document.addEventListener('DOMContentLoaded', () => {
   initMap();
-  startLiveQuery();
+  updateUI(); // Controlla subito lo stato utente
 });
