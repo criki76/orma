@@ -72,10 +72,10 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- ✅ Firebase Moderno (ES Modules) -->
+  <!-- ✅ Firebase v9 MODULARE — CORRETTO E COMPLETO -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -88,10 +88,22 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const googleProvider = new GoogleAuthProvider();
+
+    // ✅ ESPORTA TUTTO GLOBALMENTE PER IL TUO app.js
     window.__FIREBASE_APP__ = app;
-    window.__FIREBASE_AUTH__ = getAuth(app); // ✅ FONDAMENTALE: passa 'app'
-    window.__FIREBASE_DB__ = getFirestore(app);
-    window.__FIREBASE_GOOGLE_PROVIDER__ = new GoogleAuthProvider();
+    window.__FIREBASE_AUTH__ = auth;
+    window.__FIREBASE_DB__ = db;
+    window.__FIREBASE_GOOGLE_PROVIDER__ = googleProvider;
+
+    // ✅ ✅ ✅ FONDAMENTALE: ESPORTA signInWithPopup COME FUNZIONE GLOBALE
+    // Così il tuo app.js può usare: auth.signInWithPopup(googleProvider)
+    window.signInWithPopup = signInWithPopup;
+
+    // ✅ Esporta anche firebase per GeoPoint
+    window.firebase = { auth: auth, firestore: db };
   </script>
 
   <!-- I tuoi script (moduli ES6) -->
