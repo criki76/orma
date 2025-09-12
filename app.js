@@ -1,6 +1,6 @@
 // usa Firebase istanziato in index.html
 import { signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // Shortcuts globali
 const auth = window.__FIREBASE_AUTH__;
@@ -32,13 +32,12 @@ let markersLayer = null;
 function initMap() {
   map = L.map('map').setView([41.9028, 12.4964], 6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
 
-  // click per scegliere la posizione
+  // Click per scegliere la posizione
   map.on('click', (e) => setPickedLocation(e.latlng.lat, e.latlng.lng, true));
 }
 
@@ -129,12 +128,13 @@ async function salvaSegno({ text, lat, lng }) {
 
   const docData = {
     text: text.trim(),
-    lat, lng,
+    lat: lat,        // ✅ esplicito
+    lng: lng,        // ✅ esplicito
     uid: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'Utente',
     userPhoto: auth.currentUser.photoURL || null,
-    createdAt: serverTimestamp(), // server-side (può arrivare dopo)
-    createdAtTs: Date.now()       // client-side (subito disponibile)
+    createdAt: serverTimestamp(),
+    createdAtTs: Date.now()
   };
 
   const ref = await addDoc(collection(db, SEGNI_COLL), docData);
@@ -155,33 +155,42 @@ async function salvaSegno({ text, lat, lng }) {
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
-  // Prima proviamo con createdAt (serverTimestamp)
+  // Usa SEMPRE createdAtTs — è sempre presente, numerico, affidabile
+  const q = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
   try {
-    const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
-    const snap1 = await getDocs(q1);
-    if (snap1.size > 0) {
-      snap1.forEach(drawDocAsMarker);
-      return;
-    }
+    const snap = await getDocs(q);
+    snap.forEach(drawDocAsMarker);
   } catch (e) {
-    console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
-  }
-
-  // Fallback: createdAtTs (numero, sempre presente)
-  try {
-    const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
-    const snap2 = await getDocs(q2);
-    snap2.forEach(drawDocAsMarker);
-  } catch (e2) {
-    console.error('Errore anche nel fallback createdAtTs:', e2);
+    console.error('Errore caricamento segni:', e);
   }
 }
 
 function drawDocAsMarker(doc) {
   const d = doc.data();
-  if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
+  let lat, lng;
 
-  const m = L.circleMarker([d.lat, d.lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
+  // Caso 1: campi espliciti lat/lng
+  if (typeof d.lat === 'number' && typeof d.lng === 'number') {
+    lat = d.lat;
+    lng = d.lng;
+  }
+  // Caso 2: campo location (GeoPoint)
+  else if (d.location && typeof d.location.latitude === 'number' && typeof d.location.longitude === 'number') {
+    lat = d.location.latitude;
+    lng = d.location.longitude;
+  }
+  // Caso 3: campo coords
+  else if (d.coords && typeof d.coords.lat === 'number' && typeof d.coords.lng === 'number') {
+    lat = d.coords.lat;
+    lng = d.coords.lng;
+  }
+  // Caso 4: nessuna posizione valida
+  else {
+    console.warn('Documento ignorato: posizione non valida', d);
+    return;
+  }
+
+  const m = L.circleMarker([lat, lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
   const when =
     d.createdAt?.toDate ? d.createdAt.toDate() :
     (typeof d.createdAtTs === 'number' ? new Date(d.createdAtTs) : null);
@@ -197,8 +206,8 @@ function drawDocAsMarker(doc) {
 function escapeHtml(s) {
   return String(s)
     .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
+    .replaceAll('<', '<')
+    .replaceAll('>', '>')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
@@ -254,7 +263,7 @@ function wireEvents() {
       segnoText.value = '';
       closeSegnoDialog();
 
-      await caricaSegniRecenti();             // ➜ ricarica anche quelli degli altri
+      await caricaSegniRecenti();             // ➜ ricarica tutti i segni
       await checkQuotaAndUpdate();
     } catch (e) {
       console.error(e);
