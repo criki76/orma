@@ -38,6 +38,7 @@ function initMap() {
 
   markersLayer = L.layerGroup().addTo(map);
 
+  // click per scegliere la posizione
   map.on('click', (e) => setPickedLocation(e.latlng.lat, e.latlng.lng, true));
 }
 
@@ -95,6 +96,7 @@ async function handleLogout() {
   }
 }
 
+// Quota: max QUOTA_MAX segni nelle ultime 24h
 async function checkQuotaAndUpdate() {
   if (!auth.currentUser) {
     addSegnoBtn.disabled = true;
@@ -121,8 +123,10 @@ async function checkQuotaAndUpdate() {
   return { allowed: true, left };
 }
 
+// Salva su Firestore e DISEGNA SUBITO il segno sulla mappa
 async function salvaSegno({ text, lat, lng }) {
   if (!auth.currentUser) throw new Error('Non autenticato');
+
   const docData = {
     text: text.trim(),
     lat, lng,
@@ -131,25 +135,53 @@ async function salvaSegno({ text, lat, lng }) {
     userPhoto: auth.currentUser.photoURL || null,
     createdAt: serverTimestamp()
   };
-  await addDoc(collection(db, SEGNI_COLL), docData);
+
+  const ref = await addDoc(collection(db, SEGNI_COLL), docData);
+
+  // Disegna SUBITO il segno (più evidente del marker di selezione)
+  const m = L.circleMarker([lat, lng], {
+    radius: 8,
+    weight: 2,
+    fillOpacity: 0.7
+  });
+  m.bindPopup(
+    `<strong>${escapeHtml(docData.userName)}</strong><br>${escapeHtml(docData.text)}<br><small>appena adesso</small>`
+  );
+  markersLayer.addLayer(m);
+  map.setView([lat, lng], Math.max(map.getZoom(), 13));
+  m.openPopup();
+
+  return ref;
 }
 
+// Carica segni recenti dalla collezione
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
+
   const q = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
   const snap = await getDocs(q);
-  snap.forEach(doc => {
+
+  snap.forEach((doc) => {
     const d = doc.data();
     if (typeof d.lat === 'number' && typeof d.lng === 'number') {
-      const m = L.circleMarker([d.lat, d.lng], { radius: 6 });
+      const m = L.circleMarker([d.lat, d.lng], {
+        radius: 8,
+        weight: 2,
+        fillOpacity: 0.7
+      });
       const when = d.createdAt?.toDate ? d.createdAt.toDate() : null;
-      const timeStr = when ? when.toLocaleString() : '';
-      m.bindPopup(`<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(d.text || '')}<br><small>${escapeHtml(timeStr)}</small>`);
+      const timeStr = when ? when.toLocaleString() : 'appena adesso';
+      m.bindPopup(
+        `<strong>${escapeHtml(d.userName || 'Utente')}</strong><br>${escapeHtml(
+          d.text || ''
+        )}<br><small>${escapeHtml(timeStr)}</small>`
+      );
       markersLayer.addLayer(m);
     }
   });
 }
 
+// Utils
 function escapeHtml(s) {
   return String(s)
     .replaceAll('&', '&amp;')
@@ -170,13 +202,16 @@ function prendiMiaPosizione() {
   });
 }
 
+// Eventi UI
 function wireEvents() {
   loginBtn.addEventListener('click', handleLogin);
   logoutBtn.addEventListener('click', handleLogout);
 
   addSegnoBtn.addEventListener('click', async () => {
-    const q = await checkQuotaAndUpdate();
-    if (!q.allowed) return;
+    try {
+      const q = await checkQuotaAndUpdate();
+      if (!q.allowed) return;
+    } catch { /* se quota non verificabile, apri comunque */ }
     openSegnoDialog();
   });
 
@@ -194,8 +229,8 @@ function wireEvents() {
       const text = segnoText.value.trim();
       if (!text) return alert('Scrivi qualcosa prima di salvare.');
 
-      let lat = parseFloat(pickedLocation.dataset.lat || '');
-      let lng = parseFloat(pickedLocation.dataset.lng || '');
+      const lat = parseFloat(pickedLocation.dataset.lat || '');
+      const lng = parseFloat(pickedLocation.dataset.lng || '');
       if (!isFinite(lat) || !isFinite(lng)) {
         return alert('Scegli una posizione cliccando sulla mappa o usando la tua posizione.');
       }
@@ -203,10 +238,12 @@ function wireEvents() {
       const { allowed } = await checkQuotaAndUpdate();
       if (!allowed) return;
 
-      await salvaSegno({ text, lat, lng });
-      await caricaSegniRecenti();
-      await checkQuotaAndUpdate();
+      await salvaSegno({ text, lat, lng });   // ➜ disegna subito
+      segnoText.value = '';
       closeSegnoDialog();
+
+      await caricaSegniRecenti();             // ➜ ricarica anche quelli degli altri
+      await checkQuotaAndUpdate();
     } catch (e) {
       console.error(e);
       alert('Errore nel salvataggio del segno.');
