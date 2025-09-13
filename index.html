@@ -82,6 +82,11 @@
       <div class="hint muted">Scegli la posizione: usa la tua posizione o clicca sulla mappa.</div>
       <div class="row">
         <button id="useMyLocation" class="btn btn-outline" type="button">Usa la mia posizione</button>
+        <div class="row" style="gap:.5rem; flex-wrap:wrap">
+  <input id="manualLat" type="number" step="any" placeholder="Latitudine es. 45.4642" style="max-width:180px;padding:.5rem">
+  <input id="manualLng" type="number" step="any" placeholder="Longitudine es. 9.1900" style="max-width:180px;padding:.5rem">
+  <button id="setManualLocation" class="btn btn-outline" type="button">Imposta</button>
+</div>
         <span id="pickedLocation" class="muted">Nessuna posizione selezionata</span>
       </div>
       <menu class="dialog-actions">
