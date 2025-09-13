@@ -9,7 +9,7 @@ const googleProvider = window.__FIREBASE_GOOGLE_PROVIDER__;
 
 // Config
 const SEGNI_COLL = 'segni';
-const QUOTA_MAX = 3;
+const QUOTA_MAX = 30;
 const RECENTI_N = 200;
 
 // DOM
