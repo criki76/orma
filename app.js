@@ -1,6 +1,6 @@
 // usa Firebase istanziato in index.html
 import { signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // Shortcuts globali
 const auth = window.__FIREBASE_AUTH__;
@@ -24,6 +24,11 @@ const quotaInfo = document.getElementById('quotaInfo');
 const saveSegnoBtn = document.getElementById('saveSegnoBtn');
 const cancelAddSegno = document.getElementById('cancelAddSegno');
 
+// 👉 nuovi riferimenti per posizione manuale (se presenti in HTML)
+const manualLat = document.getElementById('manualLat');
+const manualLng = document.getElementById('manualLng');
+const setManualLocationBtn = document.getElementById('setManualLocation');
+
 // Mappa
 let map;
 let pickMarker = null;
@@ -32,12 +37,13 @@ let markersLayer = null;
 function initMap() {
   map = L.map('map').setView([41.9028, 12.4964], 6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
 
-  // Click per scegliere la posizione
+  // click per scegliere la posizione
   map.on('click', (e) => setPickedLocation(e.latlng.lat, e.latlng.lng, true));
 }
 
@@ -60,6 +66,10 @@ function openSegnoDialog() {
   pickedLocation.textContent = 'Nessuna posizione selezionata';
   delete pickedLocation.dataset.lat;
   delete pickedLocation.dataset.lng;
+
+  // pulisci eventuali input manuali
+  if (manualLat) manualLat.value = '';
+  if (manualLng) manualLng.value = '';
 
   if (typeof segnoDialog.showModal === 'function') segnoDialog.showModal();
   else segnoDialog.style.display = 'block';
@@ -128,13 +138,12 @@ async function salvaSegno({ text, lat, lng }) {
 
   const docData = {
     text: text.trim(),
-    lat: lat,        // ✅ esplicito
-    lng: lng,        // ✅ esplicito
+    lat, lng,
     uid: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'Utente',
     userPhoto: auth.currentUser.photoURL || null,
-    createdAt: serverTimestamp(),
-    createdAtTs: Date.now()
+    createdAt: serverTimestamp(), // server-side (può arrivare dopo)
+    createdAtTs: Date.now()       // client-side (subito disponibile)
   };
 
   const ref = await addDoc(collection(db, SEGNI_COLL), docData);
@@ -155,42 +164,33 @@ async function salvaSegno({ text, lat, lng }) {
 async function caricaSegniRecenti() {
   markersLayer.clearLayers();
 
-  // Usa SEMPRE createdAtTs — è sempre presente, numerico, affidabile
-  const q = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
+  // Prima proviamo con createdAt (serverTimestamp)
   try {
-    const snap = await getDocs(q);
-    snap.forEach(drawDocAsMarker);
+    const q1 = query(collection(db, SEGNI_COLL), orderBy('createdAt', 'desc'), limit(RECENTI_N));
+    const snap1 = await getDocs(q1);
+    if (snap1.size > 0) {
+      snap1.forEach(drawDocAsMarker);
+      return;
+    }
   } catch (e) {
-    console.error('Errore caricamento segni:', e);
+    console.warn('Query con createdAt non disponibile, passo al fallback:', e?.code || e?.message);
+  }
+
+  // Fallback: createdAtTs (numero, sempre presente)
+  try {
+    const q2 = query(collection(db, SEGNI_COLL), orderBy('createdAtTs', 'desc'), limit(RECENTI_N));
+    const snap2 = await getDocs(q2);
+    snap2.forEach(drawDocAsMarker);
+  } catch (e2) {
+    console.error('Errore anche nel fallback createdAtTs:', e2);
   }
 }
 
 function drawDocAsMarker(doc) {
   const d = doc.data();
-  let lat, lng;
+  if (typeof d.lat !== 'number' || typeof d.lng !== 'number') return;
 
-  // Caso 1: campi espliciti lat/lng
-  if (typeof d.lat === 'number' && typeof d.lng === 'number') {
-    lat = d.lat;
-    lng = d.lng;
-  }
-  // Caso 2: campo location (GeoPoint)
-  else if (d.location && typeof d.location.latitude === 'number' && typeof d.location.longitude === 'number') {
-    lat = d.location.latitude;
-    lng = d.location.longitude;
-  }
-  // Caso 3: campo coords
-  else if (d.coords && typeof d.coords.lat === 'number' && typeof d.coords.lng === 'number') {
-    lat = d.coords.lat;
-    lng = d.coords.lng;
-  }
-  // Caso 4: nessuna posizione valida
-  else {
-    console.warn('Documento ignorato: posizione non valida', d);
-    return;
-  }
-
-  const m = L.circleMarker([lat, lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
+  const m = L.circleMarker([d.lat, d.lng], { radius: 8, weight: 2, fillOpacity: 0.7 });
   const when =
     d.createdAt?.toDate ? d.createdAt.toDate() :
     (typeof d.createdAtTs === 'number' ? new Date(d.createdAtTs) : null);
@@ -206,8 +206,8 @@ function drawDocAsMarker(doc) {
 function escapeHtml(s) {
   return String(s)
     .replaceAll('&', '&amp;')
-    .replaceAll('<', '<')
-    .replaceAll('>', '>')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
@@ -245,6 +245,32 @@ function wireEvents() {
     }
   });
 
+  // 👉 Imposta posizione manuale (se i campi esistono in HTML)
+  if (setManualLocationBtn && manualLat && manualLng) {
+    setManualLocationBtn.addEventListener('click', () => {
+      const lat = parseFloat(manualLat.value);
+      const lng = parseFloat(manualLng.value);
+
+      if (!isFinite(lat) || lat < -90 || lat > 90) {
+        alert('Latitudine non valida (deve essere tra -90 e 90).');
+        return;
+      }
+      if (!isFinite(lng) || lng < -180 || lng > 180) {
+        alert('Longitudine non valida (deve essere tra -180 e 180).');
+        return;
+      }
+
+      setPickedLocation(lat, lng, true);
+    });
+
+    // Invio per confermare
+    [manualLat, manualLng].forEach(el => {
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') setManualLocationBtn.click();
+      });
+    });
+  }
+
   saveSegnoBtn.addEventListener('click', async () => {
     try {
       const text = segnoText.value.trim();
@@ -253,7 +279,7 @@ function wireEvents() {
       const lat = parseFloat(pickedLocation.dataset.lat || '');
       const lng = parseFloat(pickedLocation.dataset.lng || '');
       if (!isFinite(lat) || !isFinite(lng)) {
-        return alert('Scegli una posizione cliccando sulla mappa o usando la tua posizione.');
+        return alert('Scegli una posizione cliccando sulla mappa, usando la tua posizione o impostandola manualmente.');
       }
 
       const { allowed } = await checkQuotaAndUpdate();
@@ -263,7 +289,7 @@ function wireEvents() {
       segnoText.value = '';
       closeSegnoDialog();
 
-      await caricaSegniRecenti();             // ➜ ricarica tutti i segni
+      await caricaSegniRecenti();             // ➜ ricarica anche quelli degli altri
       await checkQuotaAndUpdate();
     } catch (e) {
       console.error(e);
